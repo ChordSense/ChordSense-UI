@@ -1,28 +1,6 @@
-// use eframe::egui;
-
-// fn main() -> eframe::Result<()> {
-//     let native_options = eframe::NativeOptions::default();
-
-//     eframe::run_native(
-//         "My egui App",
-//         native_options,
-//         Box::new(|_cc| Ok(Box::new(MyEguiApp::default()))),
-//     )
-// }
-
-// #[derive(Default)]
-// struct MyEguiApp {}
-
-// impl eframe::App for MyEguiApp {
-//     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-//         egui::CentralPanel::default().show(ctx, |ui| {
-//             ui.heading("Hello World!");
-//             ui.label("ChordSense says hello!");
-//         });
-//     }
-// }
-
 use eframe::egui;
+use egui_extras::install_image_loaders;
+use std::time::{Duration, Instant};
 
 fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
@@ -34,13 +12,19 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "ChordSense",
         native_options,
-        Box::new(|_cc| Ok(Box::new(MyEguiApp::default()))),
+        Box::new(|cc| {
+        install_image_loaders(&cc.egui_ctx);
+        Ok(Box::new(MyEguiApp::default()))
+        }),
     )
 }
 
 struct MyEguiApp {
     started: bool,
     mode: usize,
+    progress: f32,
+    is_playing: bool,
+    last_update: Instant,
 }
 
 // Set up default values
@@ -49,16 +33,19 @@ impl Default for MyEguiApp {
         Self { 
             started: false,
             mode: 0, 
+            progress: 0.0,
+            is_playing: false,
+            last_update: Instant::now(),
         }
     }
 }
 
 impl eframe::App for MyEguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Start on any key or mouse click
         if !self.started {
             let any_pressed = ctx.input(|i| {
-                !i.keys_down.is_empty()});
+                !i.keys_down.is_empty()
+            });
             if any_pressed {
                 self.started = true;
             }
@@ -67,16 +54,29 @@ impl eframe::App for MyEguiApp {
         ctx.set_visuals(egui::Visuals::light());
 
         if self.started && ctx.input(|i| i.key_pressed(egui::Key::M)) {
-            self.mode = (self.mode + 1) % 3;
+            self.mode = (self.mode + 1) % 2;
         }
 
-        // Footer stays anchored at the bottom
+        if self.started && self.mode == 0 && self.is_playing {
+            let now = Instant::now();
+            let dt = now.duration_since(self.last_update).as_secs_f32();
+            self.last_update = now;
+
+            self.progress += dt;
+            if self.progress >= 120.0 {
+                self.progress = 120.0;
+                self.is_playing = false;
+            }
+
+            ctx.request_repaint_after(Duration::from_millis(16));
+        }
+
         egui::TopBottomPanel::bottom("footer")
             .exact_height(55.0)
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        egui::RichText::new("MVP Demo • HDMI Display • Rust + egui")
+                        egui::RichText::new("Demo • HDMI Display • Rust + egui")
                             .size(24.0)
                             .color(egui::Color32::GRAY),
                     );
@@ -88,27 +88,13 @@ impl eframe::App for MyEguiApp {
                 show_start_screen(ui);
                 return;
             }
-
-            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                ui.add_space((ui.available_height() * 0.18).clamp(20.0, 120.0));
-
-                match self.mode {
-                    0 => {
-                        ui.heading(egui::RichText::new("SENSE MODE").size(90.0));
-                        ui.label(egui::RichText::new("G Major").size(65.0));
-                    }
-                    1 => {
-                        ui.heading(egui::RichText::new("RT-SENSE MODE").size(90.0));
-                        ui.label(egui::RichText::new("A3").size(65.0));
-                    }
-                    _ => {
-                        ui.heading(egui::RichText::new("RECORD MODE").size(90.0));
-                    }
-                }
-
-                ui.add_space(40.0);
-                ui.label(egui::RichText::new("Press M to switch modes").size(42.0));
-            });
+            
+            match self.mode {
+                0 => show_sense_mode(ui, &mut self.progress, &mut self.is_playing, &mut self.last_update),
+                1 => show_record_mode(ui),
+                _ => {}
+            }
+  
         });
     }
 }
@@ -163,4 +149,123 @@ fn show_start_screen(ui: &mut egui::Ui) {
             },
         );
     });
+}
+
+
+fn show_sense_mode( ui: &mut egui::Ui,progress: &mut f32, is_playing: &mut bool, last_update: &mut Instant,) {
+
+    ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+        ui.add_space(20.0);
+
+        ui.heading(egui::RichText::new("Mode: Play Along").size(48.0));
+        ui.add_space(20.0);
+
+
+
+        let back = egui::Image::new(egui::include_image!("../assets/icons/back.png"))
+            .fit_to_exact_size(egui::vec2(50.0, 50.0));
+
+        let pause = egui::Image::new(egui::include_image!("../assets/icons/pause.png"))
+            .fit_to_exact_size(egui::vec2(50.0, 50.0));
+
+        let play_button = egui::Image::new(egui::include_image!("../assets/icons/play-buttton.png"))
+            .fit_to_exact_size(egui::vec2(50.0, 50.0));
+
+        let g_chord = egui::Image::new(egui::include_image!("../assets/chords/g.png"))
+            .fit_to_exact_size(egui::vec2(450.0, 530.0));
+
+        
+
+        ui.horizontal(|ui| {
+            let metronome = egui::Image::new(egui::include_image!("../assets/icons/metronome.png"))
+                .fit_to_exact_size(egui::vec2(50.0, 50.0));
+            ui.add(metronome);
+            ui.add_space(9.0);
+            let back_response = ui.add(back.sense(egui::Sense::click()));
+            if back_response.clicked() {
+                *progress = 0.0;
+                *is_playing = false;
+            }
+
+            ui.add_space(12.0);
+
+            if *is_playing {
+                let pause_response = ui.add(pause.sense(egui::Sense::click()));
+                if pause_response.clicked() {
+                    *is_playing = false;
+                }
+            } else {
+                let play_response = ui.add(play_button.sense(egui::Sense::click()));
+                if play_response.clicked() {
+                    *is_playing = true;
+                    *last_update = Instant::now();
+                    ui.ctx().request_repaint(); 
+                }
+            }
+
+            ui.add_space(12.0);
+
+            ui.add_sized(
+                [500.0, 30.0],
+                egui::Slider::new(progress, 0.0..=120.0)
+                    .show_value(false)
+                    .min_decimals(0)
+                    .max_decimals(0),
+            );
+        });
+
+        ui.add_space(10.0);
+
+        
+
+        ui.horizontal(|ui| {
+            let vinyl = egui::Image::new(egui::include_image!("../assets/icons/vinyl.png"))
+            .fit_to_exact_size(egui::vec2(50.0, 50.0));
+            ui.add(vinyl);
+            ui.add_space(10.0);
+            ui.label(egui::RichText::new("Currently Playing: Aerosmith - Walk This Way").size(30.0));
+            
+        });
+
+
+        ui.horizontal(|ui| {
+            let music_note = egui::Image::new(egui::include_image!("../assets/icons/music_note.png"))
+                .fit_to_exact_size(egui::vec2(50.0, 50.0));
+
+            
+            ui.add(music_note);
+            ui.add_space(10.0);
+            ui.label(egui::RichText::new("BPM: 122").size(30.0));
+            
+
+        });
+
+        ui.add_space(20.0);
+        ui.add(g_chord);
+
+        ui.add_space(2.0);
+        ui.label(egui::RichText::new("Press M to switch modes").size(25.0));
+
+        
+        
+    });
+
+    
+
+    
+}
+
+fn show_record_mode(ui: &mut egui::Ui) {
+
+     ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+        ui.add_space(20.0);
+        ui.heading(egui::RichText::new("Mode: RECORD").size(90.0));
+
+        let rec_image = egui::Image::new(egui::include_image!("../assets/icons/record_circle.png")).fit_to_exact_size(egui::vec2(50.0, 50.0));
+            ui.add(rec_image);
+
+        ui.add_space(2.0);
+        ui.label(egui::RichText::new("Press M to switch modes").size(25.0));
+
+     });
 }
