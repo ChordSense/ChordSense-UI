@@ -25,6 +25,8 @@ struct MyEguiApp {
     progress: f32,
     is_playing: bool,
     last_update: Instant,
+    image_names: Vec<&'static str>,
+    current_image: usize,
 }
 
 // Set up default values
@@ -36,6 +38,32 @@ impl Default for MyEguiApp {
             progress: 0.0,
             is_playing: false,
             last_update: Instant::now(),
+            image_names: vec![
+                "assets/chords/a.png",
+                "assets/chords/ab.png",
+                "assets/chords/abm.png",
+                "assets/chords/am.png",
+                "assets/chords/b.png",
+                "assets/chords/bb.png",
+                "assets/chords/bbm.png",
+                "assets/chords/bm.png",
+                "assets/chords/c.png",
+                "assets/chords/c#.png",
+                "assets/chords/c#m.png",
+                "assets/chords/cm.png",
+                "assets/chords/d.png",
+                "assets/chords/dm.png",
+                "assets/chords/e.png",
+                "assets/chords/eb.png",
+                "assets/chords/ebm.png",
+                "assets/chords/em.png",
+                "assets/chords/f.png",
+                "assets/chords/f#m.png",
+                "assets/chords/fm.png",
+                "assets/chords/g.png",
+                "assets/chords/gm.png",
+            ],
+            current_image: 0,
         }
     }
 }
@@ -56,6 +84,21 @@ impl eframe::App for MyEguiApp {
         if self.started && ctx.input(|i| i.key_pressed(egui::Key::M)) {
             self.mode = (self.mode + 1) % 2;
         }
+
+        // Press right arrow to go to next chord image
+        if ctx.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
+            self.current_image = (self.current_image + 1) % self.image_names.len();
+        }
+
+        // Press left arrow to go to previous chord image
+        if ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft)) {
+            if self.current_image == 0 {
+                self.current_image = self.image_names.len() - 1;
+            } else {
+                self.current_image -= 1;
+            }
+        }
+
 
         if self.started && self.mode == 0 && self.is_playing {
             let now = Instant::now();
@@ -90,7 +133,10 @@ impl eframe::App for MyEguiApp {
             }
             
             match self.mode {
-                0 => show_sense_mode(ui, &mut self.progress, &mut self.is_playing, &mut self.last_update),
+                0 => {
+                    let chord_path = self.image_names[self.current_image];
+                    show_sense_mode(ui, &mut self.progress, &mut self.is_playing, &mut self.last_update, chord_path);
+                }
                 1 => show_record_mode(ui),
                 _ => {}
             }
@@ -152,7 +198,7 @@ fn show_start_screen(ui: &mut egui::Ui) {
 }
 
 
-fn show_sense_mode( ui: &mut egui::Ui,progress: &mut f32, is_playing: &mut bool, last_update: &mut Instant,) {
+fn show_sense_mode( ui: &mut egui::Ui,progress: &mut f32, is_playing: &mut bool, last_update: &mut Instant, chord_path: &str,) {
 
     ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
         ui.add_space(20.0);
@@ -168,15 +214,16 @@ fn show_sense_mode( ui: &mut egui::Ui,progress: &mut f32, is_playing: &mut bool,
         let pause = egui::Image::new(egui::include_image!("../assets/icons/pause.png"))
             .fit_to_exact_size(egui::vec2(50.0, 50.0));
 
-        let play_button = egui::Image::new(egui::include_image!("../assets/icons/play-buttton.png"))
+        let play_button = egui::Image::new(egui::include_image!("../assets/icons/play-button.png"))
             .fit_to_exact_size(egui::vec2(50.0, 50.0));
 
-        let g_chord = egui::Image::new(egui::include_image!("../assets/chords/g.png"))
+        let chord = egui::Image::new(format!("file://{}", chord_path))
             .fit_to_exact_size(egui::vec2(450.0, 530.0));
 
         
 
         ui.horizontal(|ui| {
+            ui.add_space(20.0);
             let metronome = egui::Image::new(egui::include_image!("../assets/icons/metronome.png"))
                 .fit_to_exact_size(egui::vec2(50.0, 50.0));
             ui.add(metronome);
@@ -216,9 +263,8 @@ fn show_sense_mode( ui: &mut egui::Ui,progress: &mut f32, is_playing: &mut bool,
 
         ui.add_space(10.0);
 
-        
-
         ui.horizontal(|ui| {
+            ui.add_space(20.0);
             let vinyl = egui::Image::new(egui::include_image!("../assets/icons/vinyl.png"))
             .fit_to_exact_size(egui::vec2(50.0, 50.0));
             ui.add(vinyl);
@@ -229,6 +275,7 @@ fn show_sense_mode( ui: &mut egui::Ui,progress: &mut f32, is_playing: &mut bool,
 
 
         ui.horizontal(|ui| {
+            ui.add_space(20.0);
             let music_note = egui::Image::new(egui::include_image!("../assets/icons/music_note.png"))
                 .fit_to_exact_size(egui::vec2(50.0, 50.0));
 
@@ -241,7 +288,7 @@ fn show_sense_mode( ui: &mut egui::Ui,progress: &mut f32, is_playing: &mut bool,
         });
 
         ui.add_space(20.0);
-        ui.add(g_chord);
+        ui.add(chord);
 
         ui.add_space(2.0);
         ui.label(egui::RichText::new("Press M to switch modes").size(25.0));
